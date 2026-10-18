@@ -70,3 +70,22 @@ c1.metric(f"Current ({wi_current})", f"{cur_val:.2f} days")
 c2.metric(f"If moved to {wi_factory}", f"{new_val:.2f} days",
           delta=f"{change:+.2f} days", delta_color="inverse")
 c3.metric("Change", f"{change / cur_val * 100:+.2f}%")    
+st.divider()
+st.header("Optimization Priority")
+
+speed = st.slider("Priority: lower cost (distance) ← → faster delivery", 0, 100, 50) / 100
+
+r = rec.copy()
+r["Speed Score"] = r["Reduction %"] / r["Reduction %"].max()
+r["Cost Score"] = -r["Distance Change %"] / r["Distance Change %"].abs().max()
+r["Priority Score"] = speed * r["Speed Score"] + (1 - speed) * r["Cost Score"]
+r = r.sort_values("Priority Score", ascending=False)
+hide = st.checkbox("Hide low-confidence products (under 20 orders)", value=True)
+if hide:
+    r = r[r["Orders"] >= 20]
+
+st.caption("Ranks products by a blend of lead time gain and distance change. Slide left to favor shorter distances, right to favor faster delivery.")
+st.dataframe(
+    r[["Product", "Current Factory", "Best Factory", "Priority Score", "Verdict"]].round(2),
+    use_container_width=True, hide_index=True,
+)
