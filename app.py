@@ -89,3 +89,48 @@ st.dataframe(
     r[["Product", "Current Factory", "Best Factory", "Priority Score", "Verdict"]].round(2),
     use_container_width=True, hide_index=True,
 )
+import joblib
+import numpy as np
+
+st.divider()
+st.header("Live Prediction by Region and Ship Mode")
+
+model = joblib.load("models/gradient_boosting.pkl")
+clean = pd.read_csv("data/processed/nassau_clean.csv")
+
+factory_coords = {
+    "Lot's O' Nuts": (32.881893, -111.768036),
+    "Wicked Choccy's": (32.076176, -81.088371),
+    "Sugar Shack": (48.11914, -96.18115),
+    "Secret Factory": (41.446333, -90.565487),
+    "The Other Factory": (35.1175, -89.971107),
+}
+
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371
+    lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
+    a = np.sin((lat2 - lat1) / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin((lon2 - lon1) / 2) ** 2
+    return 2 * R * np.arcsin(np.sqrt(a))
+
+c1, c2, c3 = st.columns(3)
+lp_product = c1.selectbox("Product", sorted(clean["Product Name"].unique()), key="lp_product")
+lp_region = c2.selectbox("Region", sorted(clean["Region"].unique()), key="lp_region")
+lp_mode = c3.selectbox("Ship mode", ["Same Day", "First Class", "Second Class", "Standard Class"], key="lp_mode")
+
+sub = clean[(clean["Product Name"] == lp_product) & (clean["Region"] == lp_region)].copy()
+
+if len(sub) == 0:
+    st.warning("No orders exist for this product in this region, so no prediction can be made.")
+else:
+    sub["Ship Mode"] = lp_mode
+    feats = ["Product Name", "Factory", "Region", "Ship Mode", "Distance KM", "Units", "Sales"]
+    preds = {}
+    for fac, (lat, lon) in factory_coords.items():
+        s = sub.copy()
+        s["Factory"] = fac
+        s["Distance KM"] = haversine(lat, lon, s["Dest Lat"], s["Dest Lon"])
+        preds[fac] = model.predict(s[feats]).mean()
+    out = pd.DataFrame({"Factory": list(preds.keys()), "Predicted days": list(preds.values())})
+    st.dataframe(out.sort_values("Predicted days").round(2), use_container_width=True, hide_index=True)
+    st.caption(f"Based on {len(sub)} real orders of this product in this region.")
+    
