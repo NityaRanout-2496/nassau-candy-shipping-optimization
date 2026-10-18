@@ -53,3 +53,20 @@ for _, r in rec[rec["Verdict"].str.startswith("High risk")].iterrows():
         f"{r['Product']}: moving to {r['Best Factory']} would increase shipping distance by "
         f"{r['Distance Change %']:.0f}% for only a {r['Reduction %']:.2f}% lead time gain."
     )
+st.divider()
+st.header("What-If Scenario Analysis")
+
+wi_product = st.selectbox("Product to test", sim.index, key="wi_product")
+wi_current = rec.loc[rec["Product"] == wi_product, "Current Factory"].iloc[0]
+wi_options = [f for f in sim.columns if f != wi_current]
+wi_factory = st.selectbox("Move it to", wi_options, key="wi_factory")
+
+cur_val = sim.loc[wi_product, wi_current]
+new_val = sim.loc[wi_product, wi_factory]
+change = new_val - cur_val
+
+c1, c2, c3 = st.columns(3)
+c1.metric(f"Current ({wi_current})", f"{cur_val:.2f} days")
+c2.metric(f"If moved to {wi_factory}", f"{new_val:.2f} days",
+          delta=f"{change:+.2f} days", delta_color="inverse")
+c3.metric("Change", f"{change / cur_val * 100:+.2f}%")    
